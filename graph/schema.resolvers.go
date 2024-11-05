@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/kmanadkat/go-gql-todos/db"
 	"github.com/kmanadkat/go-gql-todos/graph/model"
@@ -27,14 +28,65 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 	return &newTodo, nil
 }
 
+// UpdateTodo is the resolver for the updateTodo field.
+func (r *mutationResolver) UpdateTodo(ctx context.Context, input model.UpdateTodo) (*model.Todo, error) {
+	var dbCollection = db.GetCollection()
+	_, err := dbCollection.ReadDocument(ctx, input.ID, nil)
+	if err != nil {
+		fmt.Println("Document not found: ", err)
+		return nil, err
+	}
+	dbCollection.ReplaceDocument(ctx, input.ID, input)
+	var todo model.Todo = model.Todo(input)
+	return &todo, nil
+}
+
+// DeleteTodo is the resolver for the deleteTodo field.
+func (r *mutationResolver) DeleteTodo(ctx context.Context, input model.DeleteTodo) (*model.Todo, error) {
+	panic(fmt.Errorf("not implemented: DeleteTodo - deleteTodo"))
+}
+
 // GetTodos is the resolver for the getTodos field.
 func (r *queryResolver) GetTodos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: GetTodos - getTodos"))
+	var dbCollection = db.GetCollection()
+	var db = dbCollection.Database()
+	query := fmt.Sprintf("FOR d IN %s RETURN d", os.Getenv("DB_COLLECTION"))
+
+	// Execute query
+	cursor, err := db.Query(ctx, query, nil)
+	if err != nil {
+		fmt.Println("Error querying collection: ", err)
+		return nil, err
+	}
+	defer cursor.Close()
+
+	// Parse query results
+	var todos []*model.Todo
+	for cursor.HasMore() {
+		var todo model.Todo
+		meta, err := cursor.ReadDocument(ctx, &todo)
+		if err != nil {
+			fmt.Println("Error reading query result: ", err)
+			return nil, err
+		}
+
+		todo.ID = meta.Key
+		todos = append(todos, &todo)
+	}
+	return todos, nil
 }
 
 // GetTodo is the resolver for the getTodo field.
 func (r *queryResolver) GetTodo(ctx context.Context, id model.TodoID) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: GetTodo - getTodo"))
+	var dbCollection = db.GetCollection()
+	var todo model.Todo
+	meta, err := dbCollection.ReadDocument(ctx, id.ID, &todo)
+	if err != nil {
+		fmt.Println("Document not found: ", err)
+		return nil, err
+	}
+	todo.ID = meta.Key
+	return &todo, nil
 }
 
 // Mutation returns MutationResolver implementation.

@@ -27,7 +27,7 @@ type TodoID struct {
 }
 
 type UpdateTodo struct {
-	ID        string `json:"id"`
+	ID        string `json:"id,omitempty"`
 	Text      string `json:"text"`
 	Completed bool   `json:"completed"`
 }
