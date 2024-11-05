@@ -3,6 +3,7 @@
 # https://gqlgen.com/getting-started/
 
 type Todo {
+  id: String!
   text: String!
   completed: Boolean!
 }

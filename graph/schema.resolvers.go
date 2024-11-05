@@ -8,12 +8,23 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kmanadkat/go-gql-todos/db"
 	"github.com/kmanadkat/go-gql-todos/graph/model"
 )
 
 // CreateTodo is the resolver for the createTodo field.
 func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+	var newTodo model.Todo
+	newTodo.Text = input.Text
+	newTodo.Completed = false
+	var dbCollection = db.GetCollection()
+
+	meta, err := dbCollection.CreateDocument(ctx, newTodo)
+	if err != nil {
+		return nil, err
+	}
+	newTodo.ID = meta.Key
+	return &newTodo, nil
 }
 
 // GetTodos is the resolver for the getTodos field.

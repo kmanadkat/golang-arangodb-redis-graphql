@@ -17,6 +17,7 @@ type Query struct {
 }
 
 type Todo struct {
+	ID        string `json:"id,omitempty"`
 	Text      string `json:"text"`
 	Completed bool   `json:"completed"`
 }
