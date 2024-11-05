@@ -6,9 +6,11 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
+	"github.com/kmanadkat/go-gql-todos/cache"
 	"github.com/kmanadkat/go-gql-todos/db"
 	"github.com/kmanadkat/go-gql-todos/graph/model"
 )
@@ -24,6 +26,14 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 	if err != nil {
 		return nil, err
 	}
+
+	// Evict Cache
+	err = cache.CacheClient.Del(ctx, "todos").Err()
+	if err != nil {
+		fmt.Println("Error evicting cache: ", err)
+		return nil, err
+	}
+
 	newTodo.ID = meta.Key
 	return &newTodo, nil
 }
@@ -36,7 +46,19 @@ func (r *mutationResolver) UpdateTodo(ctx context.Context, input model.UpdateTod
 		fmt.Println("Document not found: ", err)
 		return nil, err
 	}
-	dbCollection.ReplaceDocument(ctx, input.ID, input)
+	_, err = dbCollection.ReplaceDocument(ctx, input.ID, input)
+	if err != nil {
+		fmt.Println("Error Updating todo: ", err)
+		return nil, err
+	}
+
+	// Evict Cache
+	err = cache.CacheClient.Del(ctx, "todos").Err()
+	if err != nil {
+		fmt.Println("Error evicting cache: ", err)
+		return nil, err
+	}
+
 	var todo model.Todo = model.Todo(input)
 	return &todo, nil
 }
@@ -55,12 +77,38 @@ func (r *mutationResolver) DeleteTodo(ctx context.Context, input model.DeleteTod
 		fmt.Println("Error removing document: ", err)
 		return nil, err
 	}
+
+	// Evict Cache
+	err = cache.CacheClient.Del(ctx, "todos").Err()
+	if err != nil {
+		fmt.Println("Error evicting cache: ", err)
+		return nil, err
+	}
+
 	todo.ID = meta.Key
 	return &todo, nil
 }
 
 // GetTodos is the resolver for the getTodos field.
 func (r *queryResolver) GetTodos(ctx context.Context) ([]*model.Todo, error) {
+	var todos []*model.Todo
+
+	// Fetch Todos From the Cache
+	val, err := cache.CacheClient.Get(ctx, "todos").Result()
+	if err != nil {
+		fmt.Println("Todos not found in cache: ", err)
+	}
+	if val != "" {
+		err = json.Unmarshal([]byte(val), &todos)
+		if err != nil {
+			fmt.Println("Error unmarshalling todos from cache: ", err)
+			return nil, err
+		}
+		fmt.Println("Todos found in cache")
+		return todos, nil
+	}
+
+	// Fetch Todos From DB
 	var dbCollection = db.GetCollection()
 	var db = dbCollection.Database()
 	query := fmt.Sprintf("FOR d IN %s RETURN d", os.Getenv("DB_COLLECTION"))
@@ -74,7 +122,6 @@ func (r *queryResolver) GetTodos(ctx context.Context) ([]*model.Todo, error) {
 	defer cursor.Close()
 
 	// Parse query results
-	var todos []*model.Todo
 	for cursor.HasMore() {
 		var todo model.Todo
 		meta, err := cursor.ReadDocument(ctx, &todo)
@@ -86,6 +133,18 @@ func (r *queryResolver) GetTodos(ctx context.Context) ([]*model.Todo, error) {
 		todo.ID = meta.Key
 		todos = append(todos, &todo)
 	}
+
+	// Prepare Todos & Store in Cache
+	data, err := json.Marshal(todos)
+	if err != nil {
+		fmt.Println("Error marshalling todos: ", err)
+		return nil, err
+	}
+	cache_err := cache.CacheClient.Set(ctx, "todos", data, 0).Err()
+	if cache_err != nil {
+		fmt.Println("Error storing todos in cache: ", cache_err)
+	}
+
 	return todos, nil
 }
 

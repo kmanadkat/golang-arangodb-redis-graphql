@@ -8,6 +8,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/joho/godotenv"
+	"github.com/kmanadkat/go-gql-todos/cache"
 	"github.com/kmanadkat/go-gql-todos/db"
 	"github.com/kmanadkat/go-gql-todos/graph"
 )
@@ -24,6 +25,9 @@ func main() {
 	// Initialize Database & Collection
 	db.InitializeDb()
 	db.InitializeCollection()
+
+	// Initialize Cache
+	cache.InitializeCache()
 
 	// Create GraphQL server
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
