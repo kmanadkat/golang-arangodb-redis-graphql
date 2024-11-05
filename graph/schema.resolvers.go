@@ -43,7 +43,20 @@ func (r *mutationResolver) UpdateTodo(ctx context.Context, input model.UpdateTod
 
 // DeleteTodo is the resolver for the deleteTodo field.
 func (r *mutationResolver) DeleteTodo(ctx context.Context, input model.DeleteTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: DeleteTodo - deleteTodo"))
+	var dbCollection = db.GetCollection()
+	var todo model.Todo
+	meta, err := dbCollection.ReadDocument(ctx, input.ID, &todo)
+	if err != nil {
+		fmt.Println("Document not found: ", err)
+		return nil, err
+	}
+	meta, err = dbCollection.RemoveDocument(ctx, meta.Key)
+	if err != nil {
+		fmt.Println("Error removing document: ", err)
+		return nil, err
+	}
+	todo.ID = meta.Key
+	return &todo, nil
 }
 
 // GetTodos is the resolver for the getTodos field.
